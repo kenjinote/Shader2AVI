@@ -21,8 +21,8 @@
 #include <stdint.h>
 #include "glmakeavi.h"
 
-#define PREVIEW_WIDTH 64
-#define PREVIEW_HEIGHT 64
+#define PREVIEW_WIDTH 256
+#define PREVIEW_HEIGHT 256
 #define ID_SELECTALL 1001
 #define WM_CREATED WM_APP
 
@@ -268,22 +268,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		SetWindowText(hEdit,
 			TEXT("#define pi 3.14159265358979\r\n")
 			TEXT("uniform sampler2D image;\r\n")
-			TEXT("uniform float time;\r\n")
+			TEXT("uniform float time;\r\n\r\n")
+			TEXT("inline float fx(float time2)\r\n")
+			TEXT("{\r\n")
+			TEXT("   return cos(time2 - cos(time2) / 1.5);\r\n")
+			TEXT("}\r\n\r\n")
+			TEXT("inline float fy(float time3)\r\n")
+			TEXT("{\r\n")
+			TEXT("   return -sin(time3 - cos(time3) / 1.5);\r\n")
+			TEXT("}\r\n\r\n")
 			TEXT("void main()\r\n")
 			TEXT("{\r\n")
-			TEXT("	vec2 texCoord = vec2(gl_FragCoord.x / 512, -gl_FragCoord.y / 384);\r\n")
-			TEXT("	vec4 col = texture2D(image, texCoord);\r\n")
-			TEXT("	vec2 p = gl_FragCoord;\r\n")
-			TEXT("	float c = 0.0;\r\n")
-			TEXT("	for (float i = 0.0; i < 5.0; i++)\r\n")
-			TEXT("	{\r\n")
-			TEXT("		vec2 b = vec2(\r\n")
-			TEXT("		sin(time + i * pi / 7) * 128 + 256,\r\n")
-			TEXT("		cos(time + i * pi / 2) * 128 + 192\r\n")
-			TEXT("		);\r\n")
-			TEXT("		c += 16 / distance(p, b);\r\n")
-			TEXT("	}\r\n")
-			TEXT("	gl_FragColor = col + c;\r\n")
+			TEXT("   float c = 0.0;\r\n")
+			TEXT("   for (float i = 0.0; i < 5.0; i++)\r\n")
+			TEXT("   {\r\n")
+			TEXT("      vec2 b = vec2\r\n")
+			TEXT("      (\r\n")
+			TEXT("         fx(time*2.0 + i / 2) * 100 + 128,\r\n")
+			TEXT("         fy(time*2.0 + i / 2) * 100 + 128\r\n")
+			TEXT("      );\r\n")
+			TEXT("      c += 16 / distance(gl_FragCoord, b) / distance(gl_FragCoord, b);\r\n")
+			TEXT("   }\r\n")
+			TEXT("   gl_FragColor = c;\r\n")
 			TEXT("}\r\n")
 			);
 		DragAcceptFiles(hWnd, TRUE);
@@ -295,31 +301,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		SetFocus(hEdit);
 		break;
 	case WM_DROPFILES:
+	{
+		const HDROP hDrop = (HDROP)wParam;
+		TCHAR szFilePath[MAX_PATH];
+		DragQueryFile(hDrop, 0, szFilePath, sizeof(szFilePath));
+		LPCTSTR lpExt = PathFindExtension(szFilePath);
+		if (texture)
 		{
-			const HDROP hDrop = (HDROP)wParam;
-			TCHAR szFilePath[MAX_PATH];
-			DragQueryFile(hDrop, 0, szFilePath, sizeof(szFilePath));
-			LPCTSTR lpExt = PathFindExtension(szFilePath);
-			if (texture)
-			{
-				glDeleteTextures(1, &texture);
-				texture = 0;
-			}
-			if (
-				PathMatchSpec(lpExt, TEXT("*.jpg")) ||
-				PathMatchSpec(lpExt, TEXT("*.jpeg")) ||
-				PathMatchSpec(lpExt, TEXT("*.gif")) ||
-				PathMatchSpec(lpExt, TEXT("*.png")) ||
-				PathMatchSpec(lpExt, TEXT("*.bmp")) ||
-				PathMatchSpec(lpExt, TEXT("*.tiff")) ||
-				PathMatchSpec(lpExt, TEXT("*.tif"))
-				)
-			{
-				texture = LoadImage(szFilePath);
-			}
-			DragFinish(hDrop);
+			glDeleteTextures(1, &texture);
+			texture = 0;
 		}
-		break;
+		if (
+			PathMatchSpec(lpExt, TEXT("*.jpg")) ||
+			PathMatchSpec(lpExt, TEXT("*.jpeg")) ||
+			PathMatchSpec(lpExt, TEXT("*.gif")) ||
+			PathMatchSpec(lpExt, TEXT("*.png")) ||
+			PathMatchSpec(lpExt, TEXT("*.bmp")) ||
+			PathMatchSpec(lpExt, TEXT("*.tiff")) ||
+			PathMatchSpec(lpExt, TEXT("*.tif"))
+			)
+		{
+			texture = LoadImage(szFilePath);
+		}
+		DragFinish(hDrop);
+	}
+	break;
 	case WM_SIZE:
 		MoveWindow(hEdit, PREVIEW_WIDTH + 20, 10, LOWORD(lParam) - PREVIEW_WIDTH - 30, HIWORD(lParam) - 20, 1);
 		break;
@@ -362,7 +368,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			ZeroMemory(&ofn, sizeof(ofn));
 			ofn.lStructSize = sizeof(OPENFILENAME);
 			ofn.hwndOwner = hWnd;
-			ofn.lpstrFilter = TEXT("MP4(*.mp4)\0*.mp4\0すべてのファイル(*.*)\0*.*\0\0");
+			ofn.lpstrFilter = TEXT("avi(*.avi)\0*.avi\0すべてのファイル(*.*)\0*.*\0\0");
+			ofn.lpstrDefExt = TEXT("AVI");
 			ofn.lpstrFile = szFileName;
 			ofn.nMaxFile = sizeof(szFileName);
 			ofn.Flags = OFN_FILEMUSTEXIST | OFN_OVERWRITEPROMPT;
